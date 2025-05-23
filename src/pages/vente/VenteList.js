@@ -1,95 +1,8 @@
-// import React, { useEffect, useState } from 'react';
-// import axios from 'axios';
-
-// function VenteList() {
-//   const [ventes, setVentes] = useState([]);
-
-//   useEffect(() => {
-//     axios.get('http://localhost:1010/api/vente/getAllVente')
-//       .then((response) => setVentes(response.data))
-//       .catch((error) => console.error('Error fetching ventes:', error));
-//   }, []);
-
-//   return (
-//     <div>
-//       <h2>Ventes Grouped by Date</h2>
-//       {ventes.map((vente) => (
-//         <div key={vente.id} style={cardStyle}>
-//           <h4>Date: {vente.date}</h4>
-//           <p><strong>Total Items:</strong> {vente.totalItem}</p>
-//           <p><strong>Total Cost:</strong> {vente.coutTotal}</p>
-//           <p><strong>Prix Vendu:</strong> {vente.prixVendu}</p>
-//           <p><strong>Gain:</strong> {vente.gain}</p>
-//           <p><strong>Message:</strong> {vente.message}</p>
-
-//           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-//             <thead>
-//               <tr style={{ backgroundColor: '#f2f2f2' }}>
-//                 <th style={thStyle}>Code Produit</th>
-//                 <th style={thStyle}>Nom Produit</th>
-//                 <th style={thStyle}>Quantité</th>
-//                 <th style={thStyle}>Prix Unitaire</th>
-//                 <th style={thStyle}>Prix Vendu</th>
-//                 <th style={thStyle}>Total</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {vente.nomProdEtPrixT.map((item, idx) => {
-//                 const match = item.match(
-//                   /CodeProduit: (\d+), Nom produit: ([^,]+), Qte produit: (\d+), Prix unitaire: ([\d.]+), Prix vendu: ([\d.]+), Total: ([\d.]+)/
-//                 );
-
-//                 if (!match) {
-//                   return (
-//                     <tr key={idx}>
-//                       <td colSpan={6} style={tdStyle}>⚠️ Format incorrect: {item}</td>
-//                     </tr>
-//                   );
-//                 }
-
-//                 const [, code, name, qty, unitPrice, soldPrice, total] = match;
-
-//                 return (
-//                   <tr key={idx}>
-//                     <td style={tdStyle}>{code}</td>
-//                     <td style={tdStyle}>{name}</td>
-//                     <td style={tdStyle}>{qty}</td>
-//                     <td style={tdStyle}>{unitPrice}</td>
-//                     <td style={tdStyle}>{soldPrice}</td>
-//                     <td style={tdStyle}>{total}</td>
-//                   </tr>
-//                 );
-//               })}
-//             </tbody>
-//           </table>
-//         </div>
-//       ))}
-//     </div>
-//   );
-// }
-
-// const cardStyle = {
-//   marginBottom: '3rem',
-//   padding: '1rem',
-//   border: '1px solid #ccc',
-//   borderRadius: '8px'
-// };
-
-// const thStyle = {
-//   border: '1px solid #ddd',
-//   padding: '8px',
-//   textAlign: 'left'
-// };
-
-// const tdStyle = {
-//   border: '1px solid #ddd',
-//   padding: '8px'
-// };
-
-// export default VenteList;
-
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import './VenteList.css';
 
 function VenteList() {
   const [ventes, setVentes] = useState([]);
@@ -101,124 +14,108 @@ function VenteList() {
   useEffect(() => {
     axios.get('http://localhost:1010/api/vente/getAllVente')
       .then((response) => {
-        setVentes(response.data);
-        setFilteredVentes(response.data);
+        const sorted = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setVentes(sorted);
+        setFilteredVentes(sorted);
       })
       .catch((error) => console.error('Error fetching ventes:', error));
   }, []);
 
-  // Apply filters
   useEffect(() => {
     const filtered = ventes.filter((vente) => {
       const venteDate = new Date(vente.date);
-      const matchesDate = dateFilter ? vente.date === dateFilter : true;
-      const matchesMonth = monthFilter ? (venteDate.getMonth() + 1).toString().padStart(2, '0') === monthFilter : true;
-      const matchesYear = yearFilter ? venteDate.getFullYear().toString() === yearFilter : true;
-      return matchesDate && matchesMonth && matchesYear;
+      const matchDate = dateFilter ? vente.date === dateFilter : true;
+      const matchMonth = monthFilter ? (venteDate.getMonth() + 1).toString().padStart(2, '0') === monthFilter : true;
+      const matchYear = yearFilter ? venteDate.getFullYear().toString() === yearFilter : true;
+      return matchDate && matchMonth && matchYear;
     });
     setFilteredVentes(filtered);
   }, [dateFilter, monthFilter, yearFilter, ventes]);
 
-  return (
-    <div>
-      <h2>Ventes Grouped by Date</h2>
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    doc.text("Liste des Ventes", 14, 16);
+    filteredVentes.forEach((vente, i) => {
+      const parsedData = vente.nomProdEtPrixT.map(item => {
+        const match = item.match(/CodeProduit: (\d+), Nom produit: ([^,]+), Qte produit: (\d+), Prix unitaire: ([\d.]+), Prix vendu: ([\d.]+), Total: ([\d.]+)/);
+        return match ? [match[1], match[2], match[3], match[4], match[5], match[6]] : ['-', '-', '-', '-', '-', '-'];
+      });
+      autoTable(doc, {
+        head: [['Code', 'Nom', 'Qte', 'Prix U', 'Prix V', 'Total']],
+        body: parsedData,
+        startY: i === 0 ? 20 : doc.autoTable.previous.finalY + 10,
+        margin: { left: 14 },
+        theme: 'striped',
+        headStyles: { fillColor: [41, 128, 185] },
+      });
+    });
+    doc.save("ventes.pdf");
+  };
 
-      {/* Filters */}
-      <div style={{ marginBottom: '1rem' }}>
-        <label>
-          Date (YYYY-MM-DD):{' '}
-          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-        </label>
-        {' '}
-        <label>
-          Month:{' '}
-          <input type="number" min="1" max="12" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} placeholder="MM" />
-        </label>
-        {' '}
-        <label>
-          Year:{' '}
-          <input type="number" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} placeholder="YYYY" />
-        </label>
-        {' '}
-        <button onClick={() => {
-          setDateFilter('');
-          setMonthFilter('');
-          setYearFilter('');
-        }}>Reset Filters</button>
+  return (
+    <div className="vente-list">
+      <h2>Liste des Ventes</h2>
+      <div className="filters">
+        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+        <input type="number" placeholder="MM" min="1" max="12" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} />
+        <input type="number" placeholder="YYYY" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} />
+        <button onClick={() => { setDateFilter(''); setMonthFilter(''); setYearFilter(''); }}>Réinitialiser</button>
+        <button onClick={exportPDF}>🖨️ Export PDF</button>
       </div>
 
-      {/* Display filtered ventes */}
-      {filteredVentes.map((vente) => (
-        <div key={vente.id} style={cardStyle}>
-          <h4>Date: {vente.date}</h4>
-          <p><strong>Total Items:</strong> {vente.totalItem}</p>
-          <p><strong>Total Cost:</strong> {vente.coutTotal}</p>
-          <p><strong>Prix Vendu:</strong> {vente.prixVendu}</p>
-          <p><strong>Gain:</strong> {vente.gain}</p>
-          <p><strong>Message:</strong> {vente.message}</p>
+      {filteredVentes.map((vente) => {
+        let totalGlobal = 0;
 
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f2f2f2' }}>
-                <th style={thStyle}>Code Produit</th>
-                <th style={thStyle}>Nom Produit</th>
-                <th style={thStyle}>Quantité</th>
-                <th style={thStyle}>Prix Unitaire</th>
-                <th style={thStyle}>Prix Vendu</th>
-                <th style={thStyle}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vente.nomProdEtPrixT.map((item, idx) => {
-                const match = item.match(
-                  /CodeProduit: (\d+), Nom produit: ([^,]+), Qte produit: (\d+), Prix unitaire: ([\d.]+), Prix vendu: ([\d.]+), Total: ([\d.]+)/
-                );
+        return (
+          <div key={vente.id} className="vente-card">
+            <h4>Date: {vente.date}</h4>
+            <p><strong>Total Items:</strong> {vente.totalItem}</p>
+            {/* <p><strong>Total Cost:</strong> {vente.coutTotal}</p>
+            <p><strong>Prix Vendu:</strong> {vente.prixVendu}</p> */}
+            <p><strong>Gain:</strong> {vente.gain}</p>
+            {/* <p><strong>Message:</strong> {vente.message}</p> */}
 
-                if (!match) {
+            <table className="vente-table">
+              <thead>
+                <tr>
+                  <th>Code Produit</th>
+                  <th>Nom Produit</th>
+                  <th>Quantité</th>
+                  <th>Prix Unitaire</th>
+                  <th>Prix Vendu</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vente.nomProdEtPrixT.map((item, idx) => {
+                  const match = item.match(/CodeProduit: (\d+), Nom produit: ([^,]+), Qte produit: (\d+), Prix unitaire: ([\d.]+), Prix vendu: ([\d.]+), Total: ([\d.]+)/);
+                  if (!match) {
+                    return <tr key={idx}><td colSpan="6">⚠️ Format incorrect: {item}</td></tr>;
+                  }
+                  const [, code, name, qty, unitPrice, soldPrice, total] = match;
+                  totalGlobal += parseFloat(total);
                   return (
                     <tr key={idx}>
-                      <td colSpan={6} style={tdStyle}>⚠️ Format incorrect: {item}</td>
+                      <td>{code}</td>
+                      <td>{name}</td>
+                      <td>{qty}</td>
+                      <td>{unitPrice}</td>
+                      <td>{soldPrice}</td>
+                      <td>{total}</td>
                     </tr>
                   );
-                }
-
-                const [, code, name, qty, unitPrice, soldPrice, total] = match;
-
-                return (
-                  <tr key={idx}>
-                    <td style={tdStyle}>{code}</td>
-                    <td style={tdStyle}>{name}</td>
-                    <td style={tdStyle}>{qty}</td>
-                    <td style={tdStyle}>{unitPrice}</td>
-                    <td style={tdStyle}>{soldPrice}</td>
-                    <td style={tdStyle}>{total}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ))}
+                })}
+                <tr className="total-row">
+                  <td colSpan="5" style={{ textAlign: 'right', fontWeight: 'bold' }}>Total Cost</td>
+                  <td style={{ fontWeight: 'bold' }}>{totalGlobal.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }
-
-const cardStyle = {
-  marginBottom: '3rem',
-  padding: '1rem',
-  border: '1px solid #ccc',
-  borderRadius: '8px'
-};
-
-const thStyle = {
-  border: '1px solid #ddd',
-  padding: '8px',
-  textAlign: 'left'
-};
-
-const tdStyle = {
-  border: '1px solid #ddd',
-  padding: '8px'
-};
 
 export default VenteList;

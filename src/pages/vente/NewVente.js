@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import './NewVente.css';
 
 function NewVente() {
   const [date, setDate] = useState('');
   const [products, setProducts] = useState([]);
-  const [items, setItems] = useState([
-    { produitId: '', quantite: '', prix: '' },
-  ]);
+  const [items, setItems] = useState([{ produitId: '', quantite: '', prix: '' }]);
 
-  // Fetch product list for dropdown
   useEffect(() => {
     axios.get('http://localhost:1010/api/produit/getAllProd')
       .then((res) => setProducts(res.data))
@@ -31,6 +31,7 @@ function NewVente() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     const payload = {
       date,
       items: items.map(item => ({
@@ -41,87 +42,105 @@ function NewVente() {
     };
 
     try {
-      await axios.post('http://localhost:1010/api/vente/add', payload);
-      alert('Vente added successfully!');
+      await axios.post('http://127.0.0.1:1010/api/vente/newVente', payload);
+      alert('Vente enregistrée avec succès !');
+      generatePDF();
       setDate('');
       setItems([{ produitId: '', quantite: '', prix: '' }]);
     } catch (err) {
-      console.error('Error creating vente:', err);
-      alert('Failed to create vente.');
+      console.error('Erreur:', err);
+      alert('Erreur lors de l’enregistrement.');
     }
   };
 
+  const generatePDF = () => {
+  const doc = new jsPDF();
+
+  const venteId = Math.floor(Math.random() * 10000); // à remplacer par un vrai ID si disponible
+  const totalGlobal = items.reduce((sum, item) => {
+    return sum + (parseFloat(item.prix) * parseInt(item.quantite));
+  }, 0);
+
+  doc.setFontSize(14);
+  doc.text(`Facture No: ${venteId}`, 150, 20);
+  doc.text(`Date: ${date}`, 14, 30);
+  doc.text(`Mr. ___________________ doit`, 14, 40);
+
+  autoTable(doc, {
+    startY: 50,
+    head: [['Qté', 'Désignation', 'P.U', 'P.T']],
+    body: items.map(item => {
+      const produit = products.find(p => p.id === parseInt(item.produitId));
+      const nom = produit?.nom || 'Inconnu';
+      const qty = parseInt(item.quantite);
+      const pu = parseFloat(item.prix).toFixed(2);
+      const pt = (qty * pu).toFixed(2);
+      return [qty, nom, pu, pt];
+    }),
+    styles: {
+      halign: 'center',
+    },
+    headStyles: {
+      fillColor: [255, 0, 102],
+    },
+  });
+
+  const afterTableY = doc.lastAutoTable.finalY + 10;
+
+  doc.setFontSize(12);
+  doc.text(`Total: ${totalGlobal.toFixed(2)} FCFA`, 160, afterTableY);
+  doc.setFontSize(10);
+  doc.text("Les marchandises vendues ne sont ni reprises ni échangées.", 14, afterTableY + 10);
+  doc.text("Arrêter la présente facture à la somme de _____________________________", 14, afterTableY + 20);
+  doc.text("Le vendeur", 160, afterTableY + 30);
+
+  doc.save(`Facture_${venteId}.pdf`);
+};
+
+
   return (
-    <div style={{ padding: '2rem' }}>
-      <h2>New Vente</h2>
+    <div className="new-vente">
+      <h2>Nouvelle Vente</h2>
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '1rem' }}>
-          <label>Date: </label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-            style={{ padding: '0.5rem', marginLeft: '1rem' }}
-          />
+        <div className="form-date">
+          <label>Date:</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
 
         {items.map((item, index) => (
-          <div key={index} style={{ marginBottom: '1rem', border: '1px solid #ccc', padding: '1rem' }}>
+          <div key={index} className="vente-item">
             <select
               value={item.produitId}
               onChange={(e) => handleChange(index, 'produitId', e.target.value)}
               required
-              style={{ marginRight: '1rem', padding: '0.5rem' }}
             >
-              <option value="">Select Product</option>
+              <option value="">Sélectionner un produit</option>
               {products.map(prod => (
                 <option key={prod.id} value={prod.id}>
                   {prod.nom}
                 </option>
               ))}
             </select>
-
             <input
               type="number"
               placeholder="Quantité"
               value={item.quantite}
               onChange={(e) => handleChange(index, 'quantite', e.target.value)}
               required
-              style={{ marginRight: '1rem', padding: '0.5rem' }}
             />
-
             <input
               type="number"
-              step="0.01"
               placeholder="Prix"
               value={item.prix}
               onChange={(e) => handleChange(index, 'prix', e.target.value)}
               required
-              style={{ marginRight: '1rem', padding: '0.5rem' }}
             />
-
-            <button type="button" onClick={() => removeRow(index)} style={{ padding: '0.3rem 0.6rem' }}>
-              Remove
-            </button>
+            <button type="button" onClick={() => removeRow(index)}>Supprimer</button>
           </div>
         ))}
 
-        <button type="button" onClick={addRow} style={{ marginBottom: '1rem' }}>
-          + Add Item
-        </button>
-
-        <br />
-
-        <button type="submit" style={{
-          padding: '0.5rem 1rem',
-          backgroundColor: '#2ecc71',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px'
-        }}>
-          Submit Vente
-        </button>
+        <button type="button" onClick={addRow} className="add-btn">+ Ajouter un article</button>
+        <button type="submit" className="submit-btn">Enregistrer</button>
       </form>
     </div>
   );

@@ -1,0 +1,27 @@
+.main-wrapper {
+  display: flex;
+}
+
+.content-wrapper {
+  flex: 1;
+  padding: 4rem;
+  margin-top: 80px;
+}
+
+.content-wrapper.with-sidebar {
+  margin-left: 220px;
+}
+
+@media (max-width: 768px) {
+  .main-wrapper {
+    flex-direction: column;
+  }
+
+  .content-wrapper.with-sidebar {
+    margin-left: 0;
+  }
+
+  .content-wrapper {
+    padding: 2rem 1rem;
+  }
+}

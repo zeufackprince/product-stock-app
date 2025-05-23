@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+import './ProductList.css';
 
 function ProductList() {
   const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -12,13 +17,11 @@ function ProductList() {
 
   const fetchProducts = () => {
     axios.get('http://localhost:1010/api/produit/getAllProd')
-      .then((response) => setProducts(response.data))
-      .catch((error) => console.error('Error fetching products:', error));
+      .then((res) => setProducts(res.data))
+      .catch((err) => console.error('Error fetching products:', err));
   };
 
-  const handleEdit = (id) => {
-    navigate(`/product/edit/1/${id}`);
-  };
+  const handleEdit = (id) => navigate(`/product/edit/1/${id}`);
 
   const handleDelete = (id) => {
     if (window.confirm("Are you sure you want to deactivate this product?")) {
@@ -27,78 +30,77 @@ function ProductList() {
           alert('Product deactivated.');
           fetchProducts();
         })
-        .catch((error) => {
-          console.error('Error deactivating product:', error);
+        .catch((err) => {
+          console.error('Error deactivating product:', err);
           alert('Failed to deactivate product.');
         });
     }
   };
 
+  const handlePrintPDF = () => {
+  const doc = new jsPDF();
+  doc.text("Liste des Produits", 14, 16);
+  autoTable(doc, {
+    head: [['Code', 'Nom', 'Quantité', 'Prix Unitaire']],
+    body: filteredProducts.map(p => [p.id, p.nom, p.qte, p.uprix]),
+    startY: 20,
+  });
+  doc.save('produits.pdf');
+  };
+
+
+  const filteredProducts = products.filter(p =>
+    p.nom.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div style={{ padding: '2rem' }}>
-      <h2 style={{ marginBottom: '1.5rem', color: '#2c3e50' }}>All Products</h2>
-      <table style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        borderRadius: '8px',
-        overflow: 'hidden'
-      }}>
-        <thead style={{ backgroundColor: '#3498db', color: 'white' }}>
-          <tr>
-            <th style={{ padding: '0.75rem' }}>Code</th>
-            <th style={{ padding: '0.75rem' }}>Name</th>
-            <th style={{ padding: '0.75rem' }}>Quantity</th>
-            <th style={{ padding: '0.75rem' }}>Unit Price</th>
-            <th style={{ padding: '0.75rem' }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.length === 0 ? (
+    <div className="product-list-container">
+      <div className="product-list-header">
+        <h2>All Products</h2>
+        <div className="product-list-controls">
+          <input
+            type="text"
+            placeholder="Search by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <button onClick={handlePrintPDF}>🖨️ Export PDF</button>
+        </div>
+      </div>
+
+      <div className="table-wrapper">
+        <table className="product-table">
+          <thead>
             <tr>
-              <td colSpan="5" style={{ padding: '1rem', textAlign: 'center' }}>No products found.</td>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Quantity</th>
+              <th>Unit Price</th>
+              <th>Actions</th>
             </tr>
-          ) : (
-            products.map((product, index) => (
-              <tr key={index} style={{ borderBottom: '1px solid #ddd' }}>
-                <td style={{ padding: '0.75rem' }}>{product.id || index + 1}</td>
-                <td style={{ padding: '0.75rem' }}>{product.nom}</td>
-                <td style={{ padding: '0.75rem' }}>{product.qte}</td>
-                <td style={{ padding: '0.75rem' }}>{product.uprix}</td>
-                <td style={{ padding: '0.75rem' }}>
-                  <button
-                    onClick={() => handleEdit(product.id)}
-                    style={{
-                      marginRight: '10px',
-                      padding: '6px 12px',
-                      backgroundColor: '#2ecc71',
-                      border: 'none',
-                      color: 'white',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={() => handleDelete(product.id)}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: '#e74c3c',
-                      border: 'none',
-                      color: 'white',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Supprimer
-                  </button>
-                </td>
+          </thead>
+          <tbody>
+            {filteredProducts.length === 0 ? (
+              <tr>
+                <td colSpan="5">No products found.</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              filteredProducts.map((product, index) => (
+                <tr key={index}>
+                  <td>{product.id || index + 1}</td>
+                  <td>{product.nom}</td>
+                  <td>{product.qte}</td>
+                  <td>{product.uprix}</td>
+                  <td>
+                    <button className="edit-btn" onClick={() => handleEdit(product.id)}>Modifier</button>
+                    <button className="delete-btn" onClick={() => handleDelete(product.id)}>Supprimer</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
